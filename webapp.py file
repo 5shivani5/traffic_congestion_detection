@@ -1,0 +1,38 @@
+from flask import Flask, render_template, jsonify
+print("RUNNING CORRECT webapp.py FILE ✅")
+
+
+app = Flask(__name__)
+
+current_status = "NO Congestion"
+
+@app.route('/')
+def home():
+    return render_template('index.html', status=current_status)
+
+@app.route('/update/<status>')
+def update_status(status):
+    global current_status
+    current_status = status
+    return "Status updated successfully"
+
+@app.route('/status')
+def get_status():
+    if "HIGH" in current_status:
+        color = "red"
+    elif "MEDIUM" in current_status:
+        color = "orange"
+    else:
+        color = "green"
+    
+    return jsonify({
+        "status": current_status,
+        "color": color
+    })
+
+@app.route('/latest')
+def latest_status():
+    return current_status
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
