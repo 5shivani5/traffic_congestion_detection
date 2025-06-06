@@ -1,0 +1,147 @@
+import cv2
+import torch
+import numpy as np
+import time
+import requests
+import threading
+from ultralytics import YOLO
+
+# ------------------------ Model Setup ------------------------
+device = torch.device("cpu")
+model = YOLO("yolov8n.pt").to(device)
+CLASS_NAMES_DICT = model.model.names
+SELECTED_CLASS_IDS = [2, 3, 5, 7]  # Car, Motorcycle, Bus, Truck
+
+# ------------------------ Video Capture ------------------------
+cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    print("❌ Error: Could not open webcam.")
+    exit()
+
+# ------------------------ Parameters ------------------------
+congestion_threshold = 100
+area_threshold = 50000
+speed_threshold = 2
+vehicle_tracks = {}
+congestion_history = []
+start_time = time.time()
+update_interval = 10  # seconds
+
+# ------------------------ Send to Flask Servers ------------------------
+def send_to_servers(status):
+    try:
+        encoded_status = status.replace(" ", "%20")
+
+        # Public server (optional)
+        requests.get(f"https://sushimmmm.pythonanywhere.com/update/{encoded_status}")
+        print("✅ Updated PUBLIC Flask server!")
+
+        # Localhost server (modify IP if needed)
+        requests.get(f"http://127.0.0.1:5000/update/{encoded_status}")
+        print("✅ Updated LOCAL Flask server!")
+
+    except requests.exceptions.RequestException as e:
+        print("❌ Failed to update Flask server:", e)
+
+# Run Flask update in a separate thread to avoid freezing
+def send_async(status):
+    threading.Thread(target=send_to_servers, args=(status,)).start()
+
+# ------------------------ Main Loop ------------------------
+while cap.isOpened():
+    print("[INFO] Capturing frame...")
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    print("[INFO] Resizing frame...")
+    frame = cv2.resize(frame, (640, 480))
+
+    print("[INFO] Running YOLO inference...")
+    results = model(frame)
+    print("[INFO] Inference complete.")
+
+    new_tracks = {}
+    congestion_vehicles = 0
+    total_vehicle_area = 0
+    slow_moving_vehicles = 0
+    total_vehicles = 0
+
+    congestion_text = "NO Congestion"
+    color = (0, 255, 0)
+
+    for result in results:
+        if not result.boxes:
+            continue
+
+        for box in result.boxes:
+            cls_id = int(box.cls[0])
+            if cls_id in SELECTED_CLASS_IDS:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                center_x, center_y = (x1 + x2) // 2, (y1 + y2) // 2
+                area = (x2 - x1) * (y2 - y1)
+                total_vehicle_area += area
+                total_vehicles += 1
+
+                matched_id = None
+                for vid, (prev_x, prev_y, count, prev_speed) in vehicle_tracks.items():
+                    if abs(center_x - prev_x) < 30 and abs(center_y - prev_y) < 30:
+                        matched_id = vid
+                        break
+
+                if matched_id is None:
+                    matched_id = len(vehicle_tracks) + 1
+                    vehicle_tracks[matched_id] = (center_x, center_y, 0, 0)
+
+                prev_x, prev_y, count, prev_speed = vehicle_tracks[matched_id]
+                speed = np.sqrt((center_x - prev_x) ** 2 + (center_y - prev_y) ** 2)
+
+                if speed < speed_threshold:
+                    slow_moving_vehicles += 1
+
+                if abs(center_x - prev_x) < 5 and abs(center_y - prev_y) < 5:
+                    count += 1
+                else:
+                    count = 0
+
+                new_tracks[matched_id] = (center_x, center_y, count, speed)
+
+                if count > congestion_threshold:
+                    congestion_vehicles += 1
+
+    vehicle_tracks = new_tracks
+
+    density_congestion = total_vehicle_area > area_threshold
+    speed_congestion = slow_moving_vehicles > (total_vehicles * 0.7)
+
+    if congestion_vehicles > 5:
+        congestion_text = "HIGH Congestion (Stagnant Vehicles)"
+        color = (0, 0, 255)
+    elif density_congestion:
+        congestion_text = "HIGH Congestion (High Density)"
+        color = (0, 0, 255)
+    elif speed_congestion:
+        congestion_text = "MEDIUM Congestion (Slow Movement)"
+        color = (0, 255, 255)
+
+    congestion_history.append(congestion_text)
+
+    elapsed_time = time.time() - start_time
+    if elapsed_time >= update_interval:
+        most_common = max(set(congestion_history), key=congestion_history.count)
+        print(f"[INFO] Sending most common status: {most_common}")
+        send_async(most_common)
+        congestion_history = []
+        start_time = time.time()
+
+    # Overlay result on frame
+    cv2.putText(frame, f"Traffic Status: {congestion_text}", (20, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+    cv2.imshow("Traffic Congestion Detection", frame)
+
+    if cv2.waitKey(30) & 0xFF == ord('q'):
+        break
+
+# ------------------------ Cleanup ------------------------
+cap.release()
+cv2.destroyAllWindows()
