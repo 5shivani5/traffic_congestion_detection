@@ -2,13 +2,11 @@
 #include <HTTPClient.h>
 #include "LoRa_E32.h"
 #include <HardwareSerial.h>
+const char* ssid = "ID";
+const char* password = "Password";
 
-// WiFi credentials
-const char* ssid = "Shivi";
-const char* password = "voormvoorm";
-
-// ✅ Local Flask server URL (Replace with your PC's IP)
-const char* serverURL = "http://192.168.183.125:5000/latest";// Example: 192.168.183.125
+// Local Flask server URL 
+const char* serverURL = "PC's IP";
 
 // UART2 for LoRa
 HardwareSerial mySerial(2); // RX2=GPIO16, TX2=GPIO17
