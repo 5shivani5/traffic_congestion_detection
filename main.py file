@@ -6,19 +6,19 @@ import requests
 import threading
 from ultralytics import YOLO
 
-# ------------------------ Model Setup ------------------------
+# Model Setup
 device = torch.device("cpu")
 model = YOLO("yolov8n.pt").to(device)
 CLASS_NAMES_DICT = model.model.names
 SELECTED_CLASS_IDS = [2, 3, 5, 7]  # Car, Motorcycle, Bus, Truck
 
-# ------------------------ Video Capture ------------------------
+# Video Capture 
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
-    print("❌ Error: Could not open webcam.")
+    print(" Error: Could not open webcam.")
     exit()
 
-# ------------------------ Parameters ------------------------
+#Parameters 
 congestion_threshold = 100
 area_threshold = 50000
 speed_threshold = 2
@@ -27,27 +27,27 @@ congestion_history = []
 start_time = time.time()
 update_interval = 10  # seconds
 
-# ------------------------ Send to Flask Servers ------------------------
+# Send to Flask Servers 
 def send_to_servers(status):
     try:
         encoded_status = status.replace(" ", "%20")
 
         # Public server (optional)
-        requests.get(f"https://sushimmmm.pythonanywhere.com/update/{encoded_status}")
-        print("✅ Updated PUBLIC Flask server!")
+        requests.get(f"https://dashboard.pythonanywhere.com/update/{encoded_status}")
+        print("Updated PUBLIC Flask server!")
 
         # Localhost server (modify IP if needed)
         requests.get(f"http://127.0.0.1:5000/update/{encoded_status}")
-        print("✅ Updated LOCAL Flask server!")
+        print(" Updated LOCAL Flask server!")
 
     except requests.exceptions.RequestException as e:
-        print("❌ Failed to update Flask server:", e)
+        print(" Failed to update Flask server:", e)
 
-# Run Flask update in a separate thread to avoid freezing
+# Run Flask update 
 def send_async(status):
     threading.Thread(target=send_to_servers, args=(status,)).start()
 
-# ------------------------ Main Loop ------------------------
+# Main Loop
 while cap.isOpened():
     print("[INFO] Capturing frame...")
     ret, frame = cap.read()
@@ -142,6 +142,6 @@ while cap.isOpened():
     if cv2.waitKey(30) & 0xFF == ord('q'):
         break
 
-# ------------------------ Cleanup ------------------------
+# Cleanup 
 cap.release()
 cv2.destroyAllWindows()
