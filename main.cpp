@@ -36,9 +36,6 @@ void setup() {
     configuration.CHAN = 0x04;
     configuration.OPTION.fec = FEC_0_OFF;
     configuration.OPTION.fixedTransmission = FT_TRANSPARENT_TRANSMISSION;
-    configuration.OPTION.ioDriveMode = IO_D_MODE_PUSH_PULLS_PULL_UPS;
-    configuration.OPTION.transmissionPower = POWER_20;
-    configuration.OPTION.wirelessWakeupTime = WAKE_UP_250;
     configuration.SPED.airDataRate = AIR_DATA_RATE_010_24;
     configuration.SPED.uartBaudRate = UART_BPS_9600;
     configuration.SPED.uartParity = MODE_00_8N1;
